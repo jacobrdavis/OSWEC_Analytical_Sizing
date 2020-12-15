@@ -1,0 +1,26 @@
+--- HOW TO USE calcACE ---
+
+After running calcACE, a prompt will appear in the command window
+asking for the average power at each sea state, entered as a vector
+	- Sea states must be entered in order
+	- These values can be stored in a vector (the script will
+	  accept the vector name as an input)
+
+Next, you will be prompted to enter the mass (in metric tonnes) of 
+each material contained in the WEC
+	- The script is expecting a vector with 7 entries, so enter 
+	  zeroes for any material not used
+	- These values can be stored in a vector (the script will
+	  accept the vector name as an input)
+
+
+
+Refer to "Methodology to Calculate the ACE and HPQ Metrics Used in 
+the Wave Energy Prize" for a description of the calculations.
+
+This document is here to describe how this script works at the
+moment. I would be happy to answer questions about it, or to 
+assist in modifying the script for use in other applications.
+
+Feel free to reach out to me at cole.burge@nrel.gov
+  
