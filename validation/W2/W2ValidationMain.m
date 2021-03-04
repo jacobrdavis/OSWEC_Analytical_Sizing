@@ -10,19 +10,28 @@
 %   (1) Cite M. Choiniere here
 %-------------------------------------------------------------------------%
 
+% Validation data:
+Val.Source1 = 'W2 WAMIT';    load('.//W2_hydro.mat');    Val.Data1 = W2_hydro;
+% % Val.Source2 = 'W2 WEC-Sim';  load('.//W2_MCR_free.mat'); Val.Data2 = W2_MCR;
+Val.Source2 = 'W2 WEC-Sim';  load('.//W2_MCR_0degreg_interp2.mat'); Val.Data2 = W2_MCR_0degreg ;
+Val.Source3 = 'W2 0deg exp'; load('.//W2_0deg_exp.mat'); Val.Data3 = W2_0deg_exp;
+
 % Constants;
 env.g       = 9.81;             % Acceleration of gravity [m/s^2]
 env.rho     = 1025;             % Density of sea water [kg/m^3]
 
 % Environment parameters
-env.omega   = 0.1:0.1:8.0;      % Wave angular frequencies [rad/s]
+env.omega   = Val.Data1.w;      % Wave angular frequencies [rad/s]
 env.T       = 2*pi./env.omega;  % Wave periods [s]
 env.Aw      = .06;              % Wave amplitudes [m]
+env.defwavesteepness = 0;       % Parameterize wave amplitudes based on steepness?
+    env.steepness = 0.0049;     % Wave steepness, H/L [-]
 env.h       = 4.5;              % Water depth [m]
 
-% env.omega   = Val.Data1.w;        % Wave angular frequencies [rad/s]
+% Use T and A from experiments:
+% env.omega   = Val.Data2.w;        % Wave angular frequencies [rad/s]
 % env.T       = 2*pi./env.omega;    % Wave periods [s]
-% env.Aw      = Val.Data1.H/2;      % Wave amplitudes [m]
+% env.Aw      = Val.Data2.H/2;      % Wave amplitudes [m]
 % env.h       = 4.5;                % Water depth [m]
 
 
@@ -42,11 +51,14 @@ body.defbodyprop  = true;                           % Use user-defined body prop
 body.prop.rho_m   = env.rho/2;                      % Structural density [kg/m^3]
 body.prop.mass    = 25.7;                           % Device mass [kg]
 body.prop.I55     = body.prop.rho_m/3 ...           % Pitch mass moment of inertia [kg-m^2]
-                    *w*t*ht^3*(1+(t/(2*ht))^2);             
+    *w*t*ht^3*(1+(t/(2*ht))^2);
+  
 body.prop.rb      = ht-0.294;                       % Buoyant torque arm [m]
 body.prop.rg      = ht-0.364;                       % Gravity torque arm [m]
+body.hydro.Badd   = 7.5;                           % Additional damping [kg-m^2/s]
 body.hydro.C55    = (env.rho*w*t*ht*body.prop.rb...
             - body.prop.mass*body.prop.rg)*env.g;   % Device's buoyant torque calculated from buoyancy [N-m]
+body.paramBodyProp= true;
 % body.hydro.C55     = 27; % This is the number from wecSim, about CoG
 
 % PTO properties:
@@ -64,6 +76,7 @@ body.pto.PTO_eff = 1.0;                 % PTO efficiency [-]
 % Foundation properties:
 fdn.prop.rho = 2450;        % Density of reinforced concrete [kg/m^3]
 fdn.prop.Vratio = 1;        % Ratio of foundation volume to OSWEC volume
+fdn.paramFdnProp = false;
 
 % Convergent factors for solving dispersion (wn) and numerical scheme:
 solver.n = 4;               % Dispersion equation - number of frequencies to keep
@@ -72,10 +85,6 @@ solver.nmax = 4;            % Collocation scheme for Chebyshev problem or Mathie
 % Parallel processing:
 solver.parallel = 1;        % 1- On; Otherwise - Off. For Renzi-Diaz' model only.
 
-% Validation data:
-Val.Source1 = 'W2 WAMIT';    load('.//W2_hydro.mat');    Val.Data1 = W2_hydro;
-Val.Source2 = 'W2 WEC-Sim';  load('.//W2_MCR_free.mat'); Val.Data2 = W2_MCR;
-Val.Source3 = 'W2 0deg exp'; load('.//W2_0deg_exp.mat'); Val.Data3 = W2_0deg_exp;
-
 % Post-processing file:
-PostProcessFile = './/validation//W2//W2PostProcess.m';
+% PostProcessFile = './/validation//W2//W2PostProcess.m';
+PostProcessFile = './/validation//W2//W2PostProcessEWTEC21.m';

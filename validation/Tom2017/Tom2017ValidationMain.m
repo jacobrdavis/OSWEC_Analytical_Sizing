@@ -21,6 +21,8 @@ env.omega   = 0.1:0.01:1.5;     % Wave angular frequencies [rad/s]
 env.T       = 2*pi./env.omega;  % Wave periods [s]
 env.Aw      = 1;                % Wave amplitudes [m]
 env.h       = 10;               % Water depth [m]
+env.defwavesteepness = 0;   % Parameterize wave amplitudes based on steepness?
+    env.steepness = 0.0049;     % Wave steepness, H/L [-]
 
 % OSWEC dimensions:
 w = 20;        % Width [m]               
@@ -41,7 +43,8 @@ body.prop.rb      = 5;                            % Buoyant torque arm [m]
 body.prop.rg      = 3.97;                         % Gravity torque arm [m]
 body.hydro.C55    = (env.rho*w*t*ht*body.prop.rb...
             - body.prop.mass*body.prop.rg)*env.g; % Device's buoyant torque calculated from buoyancy [N-m]
-        
+body.hydro.Badd   = 0;                            % Additional damping [kg-m^2/s]
+
 % PTO properties:
 body.pto.ctrltype = 'free';             % PTO control scheme: 'free','damper','CCC'
 body.pto.PTO_eff = 1.0;                 % PTO efficiency [-]

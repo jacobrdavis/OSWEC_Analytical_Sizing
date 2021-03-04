@@ -3,15 +3,18 @@ function [out,env,body,fdn,param,solver] = OSWEC_CalcLoop(env,body,fdn,param,sol
 nrows = length(param.c_list);
 ncols = length(param.w_list);
 
-if body.defbodyprop == false
+if body.paramBodyProp == true
 body.prop.I55   = zeros(nrows,ncols);
 body.prop.rb    = zeros(nrows,ncols);
 body.prop.rg    = zeros(nrows,ncols);
 body.prop.mass  = zeros(nrows,ncols);
 body.hydro.C55  = zeros(nrows,ncols);
+body.hydro.Badd  = zeros(nrows,ncols);
 end
 
 fdn.prop.mass   = zeros(nrows,ncols);
+fdn.dim.L   = zeros(nrows,ncols);
+fdn.dim.D   = zeros(nrows,ncols);
 
 body.hydro.mu55 = cell(nrows,ncols);
 body.hydro.nu55 = cell(nrows,ncols);
@@ -41,6 +44,7 @@ out.maxFr1      = zeros(nrows,ncols);
 out.projAreaWaveKEperW  = cell(nrows,ncols);
 out.rotKE               = cell(nrows,ncols);
 out.HydroEff            = cell(nrows,ncols);
+out.MbFdnBaseMax   = zeros(nrows,ncols);
 
 if size(env.omega,1)==1
     env.omega = transpose(env.omega);
@@ -49,13 +53,14 @@ end
 if size(env.T,1)==1
     env.T = transpose(env.T);
 end
-if size(env.Aw,1)==1
-    env.Aw = transpose(env.Aw);
+if exist('env.Aw','var')
+    if size(env.Aw,1)==1
+        env.Aw = transpose(env.Aw);
+    end
+    if  length(env.Aw) == 1
+        env.Aw = env.Aw*ones(size(env.omega));
+    end
 end
-if length(env.Aw) == 1
-    env.Aw = env.Aw*ones(size(env.omega)); 
-end
-
 [body.dim.w, body.dim.c] = meshgrid(param.w_list,param.c_list);
 %% CALCULATIONS
 tic
@@ -64,24 +69,32 @@ tic
 body.dim.t = body.dim.w/param.w2tr;     % Thickness [m]
 body.dim.ht = env.h-body.dim.c;         % Height (assumed surface piercing) [m]
 
-% Parameterized foundation dimensions (assumed cylindrical):
-fdn.dim.L = env.h - body.dim.ht; % Length [m]
-if fdn.dim.L ~= 0
-    fdn.dim.D = sqrt(fdn.prop.Vratio*4/pi*(body.dim.w.*body.dim.ht.*body.dim.t./fdn.dim.L)); % Diameter [m]
-else
-    fdn.dim.D = 0;
-end
-fdn.prop.mass = pi/4*fdn.dim.D.^2*fdn.dim.L*fdn.prop.rho; % Mass [kg]
-
 % Calculate wave numbers [m^-1]
 [env.k] = wave_disp(env.omega,env.h,env.g,0.001);
 env.lambda = 2*pi./env.k;                        % wavelengths [m]
+
+if env.defspectrum == false
+    % Parameterized wave height
+    if env.defwavesteepness == true
+        env.Aw  = env.steepness*(2*pi./env.k)/2; % Wave amplitudes [m]
+    end
+else
+    [env.S_bret,env.moments] = bretschneider(env.Hs,2*pi./env.Tp,env.omega,true);
+end
 
 % Calculate group velocity [m/s]
 env.Vg = groupvel(env.omega,env.k,env.h);
 
 % Wave TAP per crest width [W/m]
-env.TAPwave = avgwavepower(env.rho,env.g,env.Aw,env.k,env.h);
+[env] = avgwavepower(env);
+
+
+% ACE sea states
+if solver.calculateACE == 1
+    Hs = [2.34; 2.64; 5.36; 2.06; 5.84; 3.26];
+    Tp = [7.31; 9.86; 11.52; 12.71; 15.23; 16.50];
+    env.ACE.seastates = table(Tp,Hs);
+end
 
 for i = 1:nrows
     for j = 1:ncols
@@ -92,7 +105,7 @@ for i = 1:nrows
         t = body.dim.t(i,j);    % current thickness
         ht = body.dim.ht(i,j);  % current heights
         
-        if body.defbodyprop == false % If properties are not predefined, use parameterizations:
+        if body.paramBodyProp == true % If properties are not predefined, use parameterizations:
             % Assign body properties:
             body.prop.I55(i,j) = body.prop.rho_m/3*w*t*ht^3*(1+(t/(2*ht))^2);   % Pitch mass moment of inertia [kg-m^2]
             body.prop.rb(i,j) = ht/2;      % Buoyant torque arm [m]
@@ -100,6 +113,7 @@ for i = 1:nrows
             body.hydro.C55(i,j) = hs_restoring(body.prop.rho_m,w,t,ht,... % HS Restoring coefficient [Kg-m^2/s^2]
                 body.prop.rb(i,j),body.prop.rg(i,j),env.rho,env.g);
             body.prop.mass(i,j) = w*ht*t*body.prop.rho_m;
+            body.hydro.Badd(i,j) = 0;
         end
         
         % Hydrodynamic coefficients
@@ -110,6 +124,7 @@ for i = 1:nrows
             env.h, w, c, body.prop.I55(i,j), ...
             body.hydro.C55(i,j), solver.n,solver.nmax);
         
+    
         % Scale excitation by wave amplitude to obtain forces and moments:
         body.hydro.F5{i,j} = body.hydro.X5{i,j}.*env.Aw;
         body.hydro.F1{i,j} = body.hydro.X1{i,j}.*env.Aw;
@@ -140,22 +155,10 @@ for i = 1:nrows
                 env.k,env.omega,body.prop.I55(i,j),body.hydro.C55(i,j),...
                 body.hydro.mu55{i,j},body.hydro.nu55{i,j},body.pto.Cg{i,j});
             
-            out.TAP{i,j} = TAPdivA2.*env.Aw.^2; % [W]
-            
-            % Calculate ACE metric:
-            if solver.calculateACE == 1
-                
-                % Calculate ACE time-averaged power by integrating spectrum
-                [out.ACETAP{i,j},env.seastates] = calcACETAP(env.omega,TAPdivA2);
-                
-                % Calculate device and foundation material masses
-                steel_mass    = body.prop.mass(i,j)*10^(-3); %[mt]
-                concrete_mass = fdn.prop.mass(i,j)*10^(-3);  %[mt]
-                out.mtlmass{i,j} = [steel_mass,concrete_mass,0,0,0,0,0];
-                
-                % Call ACE script (Cole Burge -> NEED TO ADD TO REF!)
-                [out.ACCW(i,j),out.CCE{i,j},out.ACE{i,j}] = fun.cost_modeling.calcACE(out.ACETAP{i,j}*10^(-3),out.mtlmass{i,j});
-                
+            if env.defspectrum == false
+                out.TAP{i,j} = TAPdivA2.*env.Aw.^2; % [W]
+            else
+                out.TAP{i,j} = abs(trapz(env.omega,TAPdivA2.*2.*env.S_bret)); % [W]
             end
             
             % free
@@ -173,53 +176,68 @@ for i = 1:nrows
         % Capture width ratio
         out.CWR{i,j} = out.TAP{i,j}./(w*env.TAPwave);
         out.maxCWR(i,j) = max(out.CWR{i,j});
-        
-        % Pitch RAO
-        out.RAO{i,j} = abs(body.hydro.X5{i,j}.*(-(env.omega).^2.*(body.prop.I55(i,j)+body.hydro.mu55{i,j})...
-            + 1i*env.omega.*(body.hydro.nu55{i,j}+body.pto.nu_g{i,j}) ...
+
+        %%% 1-14-21 added Badd to RAO eq
+        % Pitch RAO 
+        out.RAO{i,j} = (body.hydro.X5{i,j}.*(-(env.omega).^2.*(body.prop.I55(i,j)+body.hydro.mu55{i,j})...
+            + 1i*env.omega.*(body.hydro.nu55{i,j}+body.hydro.Badd(i,j)+body.pto.nu_g{i,j}) ...
             + (body.hydro.C55(i,j)+body.pto.Cg{i,j})).^(-1));
         
         % Pitch amplitude
         out.xi5{i,j}      = out.RAO{i,j}.*env.Aw;
         
-%%%%%%%%%%%%%%%%%%%% Under construction past this point %%%%%%%%%%%%%%%%%%%
-        % Hydro efficiency
-        if solver.calculateHydroEff
-            
-            [out.projAreaWaveKEperW{i,j}] ...
-                = fun.hydrodynamics.waveProperties(env,body,i,j);
-            
-%             plot(env.omega,fullKEperSA); hold on
-%             plot(env.omega,projAreaKEperSA)
-       
-            out.rotKE{i,j}    = 1/2*body.prop.I55(i,j)*(env.omega.*out.xi5{i,j}).^2;
-            out.HydroEff{i,j} = out.rotKE{i,j}./(out.projAreaWaveKEperW{i,j}*w);
-            
-        end
-  
+        
+        %%%
+        
+        env.S_bret
+        
+        %%%
+        
         % Hinge reaction forces (Kurniawan 2012, Tom 2016):
-        %         out.Xr1{i,j} = abs((-env.omega.^2.*body.hydro.mu15{i,j}+1i*env.omega.*body.hydro.nu15{i,j})...
-        %             .*out.RAO{i,j}./(1i*env.omega) - body.hydro.F1{i,j});
-        
-        out.Xr1{i,j} = abs((-env.omega.^2.*body.hydro.mu15{i,j}+1i*env.omega.*body.hydro.nu15{i,j})...
-            .*out.RAO{i,j}./(1i*env.omega) - body.hydro.X1{i,j});
-        
-        %         out.Xr1{i,j} = abs((-env.omega.^2.*body.hydro.mu15{i,j}+1i*env.omega.*body.hydro.nu15{i,j})...
-        %             .*out.RAO{i,j} - body.hydro.X1{i,j});
-        
-        %         out.Xr1{i,j} = abs((-env.omega.^2.*body.hydro.mu15{i,j}+1i*env.omega.*body.hydro.nu15{i,j})...
-        %             .*out.RAO{i,j}.*env.k - body.hydro.X1{i,j});
-        
-        %         FIGURE OUT IF THE  out.RAO{i,j}./(1i*env.omega) term is right!
-        
+        out.Xr1{i,j} = ((-env.omega.^2.*body.hydro.mu15{i,j}+1i*env.omega.*body.hydro.nu15{i,j})...
+            .*out.RAO{i,j} - body.hydro.X1{i,j});
         out.Xr3{i,j} = -(env.rho*w*t*ht - body.prop.mass(i,j))*env.g./env.Aw.*ones(size(env.omega)); % Neglect X3
         out.Fr1{i,j} = out.Xr1{i,j}.*env.Aw;
         out.Fr3{i,j} = out.Xr3{i,j}.*env.Aw;
         out.maxFr1(i,j) = max(out.Fr1{i,j});
         
+        if fdn.paramFdnProp == true % If properties are not predefined, use parameterizations:
+            % Parameterized foundation dimensions (assumed cylindrical w/ annular cross section):
+            fdn.dim.L(i,j) = body.dim.c(i,j); % Length [m]
+            out.MbFdnBaseMax(i,j) = max(abs(out.Fr1{i,j}))*fdn.dim.L(i,j);
+            
+            if fdn.dim.L(i,j) ~= 0
+                % fdn.dim.D = sqrt(fdn.prop.Vratio*4/pi*(body.dim.w.*body.dim.ht.*body.dim.t./fdn.dim.L)); % Diameter [m]
+                fdn.dim.D(i,j) = (out.MbFdnBaseMax(i,j)/(pi/32*fdn.prop.SigYield/fdn.prop.SF*(1-fdn.prop.gamma^4)))^(1/3);
+            else
+                fdn.dim.D(i,j) = 0;
+            end
+            fdn.prop.mass(i,j) = pi/4*(fdn.dim.D(i,j)^2 - (fdn.prop.gamma*fdn.dim.D(i,j))^2)*fdn.dim.L(i,j)*fdn.prop.rho; % Mass [kg]
+        end
+        
+        % Calculate ACE metric:
+        if solver.calculateACE == 1
+            
+            % Calculate ACE time-averaged power by integrating spectrum
+            if i==1 && j==1; [out.ACETAP{i,j},env.ACE.S_bret,env.ACE.moments] = calcACETAP(env.omega,TAPdivA2,env.ACE.seastates,1); 
+            else;            [out.ACETAP{i,j},~,~] = calcACETAP(env.omega,TAPdivA2,env.ACE.seastates,0); end
+            
+            % Calculate device and foundation material masses
+            steel_mass    = body.prop.mass(i,j)*10^(-3); %[mt]
+            concrete_mass = fdn.prop.mass(i,j)*10^(-3);  %[mt]
+            out.mtlmass{i,j} = [steel_mass,concrete_mass,0,0,0,0,0];
+            
+            % Call ACE script (Cole Burge -> NEED TO ADD TO REF!)
+            [out.ACCW(i,j),out.CCE{i,j},out.ACE{i,j}] = fun.cost_modeling.calcACE(out.ACETAP{i,j}*10^(-3),out.mtlmass{i,j});
+        end
+        
     end
 end; clear w c t ht concrete_mass steel_mass ACE
 toc
+
+%% Time history
+%[out,env,body,fdn,param,solver] = fun.hydrodynamics.SSresponse(env,body,fdn,param,solver)
+
 
 end
 
@@ -251,9 +269,22 @@ Cgrav = rho_m*w*t*ht*rg;
 C55 = (Cbuoy-Cgrav)*g;      
 end
 %-------------------------------------------------------------------------%
-% TIME-AVERAGED WAVE POWER
-function [TAPwave] = avgwavepower(rho,g,Aw,k,h)
-TAPwave = 1/4*rho*g*Aw.^2.*(g./k.*tanh(k*h)).^(1/2).*(1+2*k*h./(sinh(2*k*h))); % [W/m]
+% TIME-AVERAGED WAVE POWER FLUX
+function [env] = avgwavepower(env) 
+rho = env.rho;
+g   = env.g;
+k   = env.k;
+h   = env.h;
+w   = env.omega;
+
+TAPwavecoeff = 1/2*rho*g*(g./k.*tanh(k*h)).^(1/2).*(1+2*k*h./(sinh(2*k*h))); % [W/m^3]
+
+   if env.defspectrum == false
+        env.TAPwave = 1/2*env.Aw.^2.*TAPwavecoeff; % [W/m]
+   else
+        env.TAPwave = abs(trapz(w,TAPwavecoeff.*env.S_bret)); % [W/m]
+   end
+      
 end
 %-------------------------------------------------------------------------%
 % TAP COEFFICIENT
@@ -303,6 +334,7 @@ end
 %-------------------------------------------------------------------------%
 % BRETSCHNEIDER SPECTRUM
 function [S,m] = bretschneider(Hs,wm,w,plotout)
+Tp = 2*pi/wm;
 m = zeros(3,1);
 S = 1.25/4*wm^4./(w.^5)*Hs^2.*exp(-1.25*(wm./w).^4);
 % S = 5/16*wm.^4./(w.^5)*Hs^2.*exp(-5*wm.^4./(4*w.^4))
@@ -313,15 +345,28 @@ m(3) = trapz(w,S.*w.^2); % second moment m2
 if plotout == true
     figure
     plot(w,S)
+    ylabel('$S_{\eta}(\omega)$ (m\textsuperscript{2}s)','Interpreter','Latex')
+    xlabel('$\omega$ (rad/s)','Interpreter','Latex')
 end
+
+if S(1) > 0.05*max(S) || ...
+        S(end) > 0.05*max(S)
+    warning(['The spectral width calculated at 5% of the maximum value of the current seastate ',...
+        '(Tp = ', num2str(Tp),' s, Hs = ',num2str(Hs),' m) ',...
+        'is outside the range of specified frequencies.',char(10),...
+        'Maximum value:',' S(w=w_p=',num2str(2*pi/Tp),' rad/s) = ',num2str(max(S)),' m^2 (5% = ',num2str(0.05*max(S)),' m^2)',char(10),...
+        'Value at bound 1: S(w=',num2str(w(1)),' rad/s) = ',num2str(S(1)),' m^2',char(10),...
+        'Value at bound 2: S(w=',num2str(w(end)),' rad/s) = ',num2str(S(end)),' m^2',char(10),...
+        ])
+end
+
+
 end
 %-------------------------------------------------------------------------%
 % ACE METRIC TIME-AVG POWER
-function [ACETAP,seastates] = calcACETAP(w,TAPdivA2)
-Hs = [2.34; 2.64; 5.36; 2.06; 5.84; 3.26];
-Tp = [7.31; 9.86; 11.52; 12.71; 15.23; 16.50];
-
-seastates = table(Tp,Hs);
+function [ACETAP,S_bret,moments] = calcACETAP(w,TAPdivA2,seastates,plotspectra)
+S_bret = zeros(length(w),height(seastates));
+moments = zeros(3,height(seastates));
 ACETAP = zeros(1,height(seastates));
 
 for ss = 1:height(seastates)
@@ -330,10 +375,28 @@ for ss = 1:height(seastates)
     Tp = seastates.Tp(ss);
     wp = 2*pi*Tp^-1;
     % Calculate energy wave spectrum
-    [S_bret,moments] = bretschneider(Hs,wp,w,false);
+    [S_bret(:,ss),moments(:,ss)] = bretschneider(Hs,wp,w,false);
     
-    ACETAP(ss) = trapz(w,TAPdivA2*2.*S_bret); % [W]
+    % Check bounds at 5% spectral width
+    if S_bret(1,ss) > 0.05*max(S_bret(:,ss)) || ...
+       S_bret(end,ss) > 0.05*max(S_bret(:,ss))     
+        warning(['The spectral width calculated at 5% of the maximum value of seastate '...
+            ,num2str(ss),' (Tp = ', num2str(Tp),' s, Hs = ',num2str(Hs),' m) ',...
+            'is outside the range of specified frequencies.',char(10),...
+            'Maximum value:',' S(w=w_p=',num2str(2*pi/Tp),' rad/s) = ',num2str(max(S_bret(:,ss))),' m^2 (5% = ',num2str(0.05*max(S_bret(:,ss))),' m^2)',char(10),...
+            'Value at bound 1: S(w=',num2str(w(1)),' rad/s) = ',num2str(S_bret(1,ss)),' m^2',char(10),...
+            'Value at bound 2: S(w=',num2str(w(end)),' rad/s) = ',num2str(S_bret(end,ss)),' m^2',char(10),...
+            ])
+    end
+    
+    ACETAP(ss) = abs(trapz(w,TAPdivA2*2.*S_bret(:,ss))); % [W]
 end
+if plotspectra == 1
+    figure()
+    plot(w,S_bret)
+    legend([repmat('SS ',height(seastates),1),num2str([1:6].')])
+end
+
 % Sea state 3 with dir = -70deg set to zero!
 ACETAP(3) = 0;
 end

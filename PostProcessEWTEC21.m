@@ -10,39 +10,35 @@ close all
 normalize = false;          % Nondimensionalize plot results?
 plot_indices = [2,1];       % Visualize output of individual case
 
+% Define normalizations and labels:
+omega_normalization = 1;    omega_label = '$\omega$ (rad s\textsuperscript{-1})';
+% omega_normalization = sqrt(env.h/env.g); omega_label = '$\omega* = \omega (h/g)^{1/2} [-]$'; % [rad/s]/[rad/s]
+mu55_normalization    = 1;	mu55_label    = '$\mu_{55}$ (kg-m\textsuperscript{2})';
+mu15_normalization    = 1;	mu15_label    = '$\mu_{15}$ (kg-m)';
+nu55_normalization    = 1;	nu55_label    = '$\nu_{55}$ (kg-m\textsuperscript{2}s\textsuperscript{-1})';
+nu15_normalization    = 1;	nu15_label    = '$\nu_{15}$ (kg-m s\textsuperscript{-1})';
+X5_ma_normalization = 1;	X5_ma_label = '$|X_5|$ (kN-m)';
+X5_ph_normalization = 1;	X5_ph_label = '$\varphi_5$ (rad)';
+X1_ma_normalization = 1;	X1_ma_label = '$|X_1|$ (kN)';
+X1_ph_normalization = 1;	X1_ph_label = '$\varphi_1$ (rad)';
+C55_normalization   = 1;	C55_label   = '$C_{55}$ (Kgm\textsuperscript{2}s\textsuperscript{-2})';
+xi5_normalization   = 1;	xi5_label   = 'Pitch Amplitude $\xi_{5} [deg]$';
+RAO_normalization   = 1;	RAO_label   = 'RAO $\xi_{5}/A$';
+F1_normalization    = 1;	F1_label    = '$|F_1| [N]$';
+Fr1_normalization   = 1;	Fr1_label   = 'Hinge Surge Reaction Force Magnitude $[N]$';
+Cg_normalization   = 1;     Cg_label   = '$C_{g}$ (Kgm\textsuperscript{2}s\textsuperscript{-2})';
+nu_g_normalization    = 1;	nu_g_label    = '$\nu_{g}$ (kg-m\textsuperscript{2}s\textsuperscript{-1})';
+Lnorm = (env.h)^(-1);
+
 %% SURFACE PLOTS
 nrows = length(param.c_list);
 ncols = length(param.w_list);
 
 if ncols > 1 || nrows > 1 
-%     figure
-%     surf(body.dim.w,body.dim.c,out.maxCWR)
-%     xlabel('Width [m]')
-%     ylabel('Distance From Seabed [m]')
-%     zlabel('CWR')
-% 
-%     figure
-%     surf(body.dim.w,body.dim.c,out.maxFr1)
-%     xlabel('Width [m]')
-%     ylabel('Distance From Seabed [m]')
-%     zlabel('Fr1')
-    
 
-%     figure
-%     surf(body.dim.c,env.omega,[out.Xr1{:,1}])
-%     xlabel('Distance From Seabed [m]')
-%     ylabel('Angular Frequency \omega [rad/s]')
-%     zlabel('Xr1')
-%     
-%     figure
-%     surf(body.dim.c,env.omega,[out.CWR{:,1}])
-%     xlabel('Distance From Seabed [m]')
-%     ylabel('Angular Frequency \omega [rad/s]')
-%     zlabel('CWR')
-
-Lnorm = (env.h)^(-1);
-
-    
+%-------------------------------------------------------------------------%
+% frequency (\omega) and width (w) plots 
+%-------------------------------------------------------------------------%
     if length(param.w_list) == 1 
         xlab = 'Angular Frequency $\omega [rad/s]$';
         ylab = 'Distance From Seabed $[m]$';
@@ -89,7 +85,9 @@ Lnorm = (env.h)^(-1);
             
         end
         
-        
+%-------------------------------------------------------------------------%
+% frequency (\omega) and distance to seabed (c) plots 
+%-------------------------------------------------------------------------%
     elseif length(param.c_list) == 1 
         xlab = 'Angular Frequency $\omega$ [rad/s]';
         ylab = 'Width [m]';
@@ -113,12 +111,13 @@ Lnorm = (env.h)^(-1);
         ylabel(ylab,'Interpreter','Latex');
         zlabel(zlab,'Interpreter','Latex');
         
+        if env.defspectrum == false
         [plotout,axesout] = fun.graphics.stackedlines(env.omega,body.dim.w,abs([out.TAP{1,:}]),true);
         zlab = '$P_T$ [W]';
         xlabel(xlab,'Interpreter','Latex');
         ylabel(ylab,'Interpreter','Latex');
         zlabel(zlab,'Interpreter','Latex');
-        
+        end
         
         if solver.calculateHydroEff == true  
             [plotout,axesout] = fun.graphics.stackedlines(env.omega,body.dim.w,[out.HydroEff{1,:}]*100,true);
@@ -128,11 +127,13 @@ Lnorm = (env.h)^(-1);
             zlabel(zlab,'Interpreter','Latex');           
         end
         
-        [plotout,axesout] = fun.graphics.stackedlines(env.omega,body.dim.w,[out.CWR{1,:}],true);
-        zlab = 'CWR [m/m]';
-        xlabel(xlab,'Interpreter','Latex');
-        ylabel(ylab,'Interpreter','Latex');
-        zlabel(zlab,'Interpreter','Latex');
+        if env.defspectrum == false
+            [plotout,axesout] = fun.graphics.stackedlines(env.omega,body.dim.w,[out.CWR{1,:}],true);
+            zlab = 'CWR [m/m]';
+            xlabel(xlab,'Interpreter','Latex');
+            ylabel(ylab,'Interpreter','Latex');
+            zlabel(zlab,'Interpreter','Latex');
+        end
         
         if solver.calculateACE == 1
             figure
@@ -151,171 +152,87 @@ Lnorm = (env.h)^(-1);
             ylabel('CCE Med [\$M]','Interpreter','Latex');
             
         end    
-        
+%-------------------------------------------------------------------------%
+% width (w) and distance to seabed (c) plots 
+%-------------------------------------------------------------------------%
     elseif length(param.w_list) > 1 &&  length(param.c_list) > 1
  
-        %xlab = 'Width [m]';
-        %ylab = 'Distance From Seabed [m]';
-        xlab = 'w/h';
-        ylab = 'c/h';
-        xlimits = [round(min(body.dim.w(1,:)*Lnorm),1) round(max(body.dim.w(1,:)*Lnorm),1)];
-        ylimits = [round(min(body.dim.c(:,1)*Lnorm),1) round(max(body.dim.c(:,1)*Lnorm),1)];
-        xtickvals =[0.3:0.1:1];
+        xlab = '$w/h$';
+        ylab = '$c/h$';
+        xlimits = [round(min(body.dim.w(1,:)*Lnorm),2) max(body.dim.w(1,:)*Lnorm)];
+        ylimits = [min(body.dim.c(:,1)*Lnorm) max(body.dim.c(:,1)*Lnorm)];
+        xtickvals =[0.33, 0.4:0.1:1];
         ytickvals =[0:0.1:.6];
-        
+        surfcolor = 'jet'; % bone; jet
+        fontsize = 12;
         
         if solver.calculateACE == 1
-            figure
-            surf(body.dim.w*Lnorm,body.dim.c*Lnorm ,out.ACCW)
-            xlabel(xlab)
-            ylabel(ylab)
-            zlabel('Avg ACCW')
-            xlim(xlimits)
-            ylim(ylimits)
-            xticks(xtickvals)
-            yticks(ytickvals)
-%             axis equal
-%             fun.graphics.axesLabelsAlign3D
             
+            % ACCW mcp plot
+            figure; hold on
+            % zlimits = [0.55 0.7]; zlim(zlimits) 
+            ztickform = '%g'; zlab = 'ACCW (m)';
+            mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm ,out.ACCW);
+            run('mcpsettings.m')
             
-            figure
-            surf(body.dim.w*Lnorm,body.dim.c*Lnorm,out.ACCW)
-            xlabel(xlab)
-            ylabel(ylab)
-            zlabel('Avg ACCW')
-            xlim(xlimits)
-            ylim(ylimits)
-            xticks(xtickvals)
-            yticks(ytickvals)
+            % CCE mcp plot
+            figure; hold on
+            % zlimits = [0.55 0.7]; zlim(zlimits) 
+            ztickform = '%g'; zlab = 'CCE Med (\$M)';
+            mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) x(2),out.CCE));
+            run('mcpsettings.m')
             
-            figure
-            surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) x(2),out.CCE))
-            xlabel(xlab)
-            ylabel(ylab)
-            zlabel('CCE Med [$M]')
-            xlim(xlimits)
-            ylim(ylimits)
-            xticks(xtickvals)
-            yticks(ytickvals)
-            
-            
-             figure
-            colormap('jet') %bone
-            surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) x(2),out.ACE),'FaceColor','flat',... %interp
-            'EdgeColor','flat',...
-            'FaceLighting','gouraud','FaceAlpha',0.75)
-            xlabel(xlab)
-            ylabel(ylab)
-            zlabel('ACE Med [m/$M]')
-            xlim(xlimits)
-            ylim(ylimits)
-            xticks(xtickvals)
-            yticks(ytickvals)            
-            
-            
-            
-            figure
-            colormap('jet') %bone
-            surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) x(2),out.ACE),'FaceColor','flat',... %interp
-            'EdgeColor','flat',...
-            'FaceLighting','gouraud','FaceAlpha',0.75)
-            xlabel(xlab)
-            ylabel(ylab)
-            zlabel('ACE Med [m/$M]')
-            xlim(xlimits)
-            ylim(ylimits)
-            xticks(xtickvals)
-            yticks(ytickvals)
-           % axis equal
-           % fun.graphics.axesLabelsAlign3D
+            % ACE mcp plot
+            figure; hold on
+            % zlimits = [0.55 0.7]; zlim(zlimits) 
+            ztickform = '%g'; zlab = 'ACE Med (m/\$M)';
+            mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) x(2),out.ACE));
+            run('mcpsettings.m')
+              
         end
+         
+      
+        % Capture width ratio mcp plot       
+        figure; hold on
+        %zlimits = [0.55 0.7]; zlim(zlimits); 
+        ztickform = '%.2f'; zlab = 'CWR (-)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.CWR));
+        run('mcpsettings.m')
+
+        % Capture width ratio mcp plot       
+        figure; hold on
+        %zlimits = [0.55 0.7]; zlim(zlimits); 
+        ztickform = '%.2f'; zlab = '$P_{WEC}$ (KW)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.TAP)*10^(-3));
+        run('mcpsettings.m')
         
-        figure
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.CWR))
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('CWR [m/m]')
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
+        % Pwave mcp plot       
+        figure; hold on
+        %zlimits = [0.55 0.7]; zlim(zlimits); 
+        ztickform = '%.2f'; zlab = '$P_{wave}$ (KW)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,body.dim.w*env.TAPwave*10^(-3));
+        run('mcpsettings.m')
         
-        figure
-        colormap('jet') %bone
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,out.maxCWR,'FaceColor','flat',... %interp
-            'EdgeColor','flat',...
-            'FaceLighting','gouraud','FaceAlpha',0.75)
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('CWR [-]')
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals) 
+        % Fdn D mcp plot
+        figure; hold on
+        % zlimits = [0.55 0.7]; zlim(zlimits)
+        ztickform = '%g'; zlab = 'Foundation Diameter (m)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,fdn.dim.D);
+        run('mcpsettings.m')
         
+        % Fdn D mcp plot
+        figure; hold on
+        % zlimits = [0.55 0.7]; zlim(zlimits)
+        ztickform = '%g'; zlab = '$F_{R1}$ (MN)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,abs(out.maxFr1)*10^(-6));
+        run('mcpsettings.m')
         
-        
-        figure
-        colormap('jet') %bone
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.TAP),out.maxCWR,'FaceColor','flat',... %interp
-            'EdgeColor','flat',...
-            'FaceLighting','gouraud','FaceAlpha',0.75)
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('TAP [W]')
-        c = colorbar
-        c.Label.String = 'CWR [m/m]'
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
-        
-        figure
-        colormap('jet') %bone
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,out.maxCWR,cellfun(@(x) max(x),out.TAP),'FaceColor','flat',... %interp
-            'EdgeColor','flat',...
-            'FaceLighting','gouraud','FaceAlpha',0.75)
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('CWR [m/m]')
-        c = colorbar
-        c.Label.String = 'TAP [W]'
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
-        
-        figure
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,fdn.dim.D)
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('Foundation Diameter [m]')
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
-        
-        
-        figure
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,abs(out.maxFr1))
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('Fr1 Max [N]')
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
-        
-        
-        figure
-        surf(body.dim.w*Lnorm,body.dim.c*Lnorm,out.MbFdnBaseMax)
-        xlabel(xlab)
-        ylabel(ylab)
-        zlabel('Mb@FdnBase Max [N-m]')
-        xlim(xlimits)
-        ylim(ylimits)
-        xticks(xtickvals)
-        yticks(ytickvals)
+        % Fdn Mb mcp plot
+        figure; hold on
+        % zlimits = [0.55 0.7]; zlim(zlimits)
+        ztickform = '%g'; zlab = '$M_{b}$ (MN-m)';
+        mcp = meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,out.MbFdnBaseMax*10^(-6));
+        run('mcpsettings.m')
         
     end
 end
@@ -327,26 +244,7 @@ else
     i = plot_indices(1); j = plot_indices(2);
 end
 
-body.dim.c(i,j)
 
-% Define normalizations and labels:
-omega_normalization = 1;    omega_label = '$\omega$ (rad s\textsuperscript{-1})';
-% omega_normalization = sqrt(env.h/env.g); omega_label = '$\omega* = \omega (h/g)^{1/2} [-]$'; % [rad/s]/[rad/s]
-mu55_normalization    = 1;	mu55_label    = '$\mu_{55}$ (kg-m\textsuperscript{2})';
-mu15_normalization    = 1;	mu15_label    = '$\mu_{15}$ (kg-m)';
-nu55_normalization    = 1;	nu55_label    = '$\nu_{55}$ (kg-m\textsuperscript{2}s\textsuperscript{-1})';
-nu15_normalization    = 1;	nu15_label    = '$\nu_{15}$ (kg-m s\textsuperscript{-1})';
-X5_ma_normalization = 1;	X5_ma_label = '$|X_5|$ (kN-m)';
-X5_ph_normalization = 1;	X5_ph_label = '$\varphi_5$ (rad)';
-X1_ma_normalization = 1;	X1_ma_label = '$|X_1|$ (kN)';
-X1_ph_normalization = 1;	X1_ph_label = '$\varphi_1$ (rad)';
-C55_normalization   = 1;	C55_label   = '$C_{55}$ (Kgm\textsuperscript{2}s\textsuperscript{-2})';
-xi5_normalization   = 1;	xi5_label   = 'Pitch Amplitude $\xi_{5} [deg]$';
-RAO_normalization   = 1;	RAO_label   = 'RAO $\xi_{5}/A$';
-F1_normalization    = 1;	F1_label    = '$|F_1| [N]$';
-Fr1_normalization   = 1;	Fr1_label   = 'Hinge Surge Reaction Force Magnitude $[N]$';
-Cg_normalization   = 1;     Cg_label   = '$C_{g}$ (Kgm\textsuperscript{2}s\textsuperscript{-2})';
-nu_g_normalization    = 1;	nu_g_label    = '$\nu_{g}$ (kg-m\textsuperscript{2}s\textsuperscript{-1})';
 
 % Pitch Added mass and radiation damping
 figure
@@ -609,3 +507,85 @@ Do = (Mb/(pi/32*Sigyield/SF*(1-gamma^4)))^(1/3)
 % end
 % 
 % end
+
+%         % mesh setttings
+%         mcp(1).EdgeColor = 'flat'; 
+%         mcp(1).FaceColor = 'flat';
+%         mcp(1).FaceAlpha = 0.7;
+%         mcp(1).FaceLighting ='gouraud';
+%         % contour settings
+%         mcp(2).EdgeColor = 'flat'; 
+%         xlabel(xlab,'Interpreter','Latex','FontSize',fontsize,'Position',[0.6785,-0.0550,0.5340])
+%         ylabel(ylab,'Interpreter','Latex','FontSize',fontsize,'Position',[0.2515, 0.3371,0.5361])
+%         zlabel('CWR [-]','Interpreter','Latex','FontSize',fontsize)
+%         xlim(xlimits)
+%         ylim(ylimits)
+%         xticks(xtickvals); 
+%         ztickformat(ztickform)
+%         yticks(ytickvals)
+%         view(-30,30)
+%         ax = gca
+%         ax.XTickLabelRotation=-35.5;
+%         ax.YTickLabelRotation=12;
+
+%         figure
+%         colormap(surfcolor)
+%         surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.TAP),out.maxCWR,...
+%             'FaceColor','flat','FaceAlpha',0.75,...
+%             'EdgeColor','flat','FaceLighting','gouraud')
+%         xlabel(xlab,'Interpreter','Latex')
+%         ylabel(ylab,'Interpreter','Latex')
+%         zlabel('TAP [W]','Interpreter','Latex')
+%         c = colorbar;
+%         c.Label.String = 'CWR [m/m]';
+%         xlim(xlimits)
+%         ylim(ylimits)
+%         xticks(xtickvals)
+%         yticks(ytickvals)
+%         
+%         figure
+%         colormap(surfcolor)
+%         surf(body.dim.w*Lnorm,body.dim.c*Lnorm,out.maxCWR,cellfun(@(x) max(x),out.TAP),...
+%             'FaceColor','flat','FaceAlpha',0.75,...
+%             'EdgeColor','flat','FaceLighting','gouraud')
+%         xlabel(xlab,'Interpreter','Latex')
+%         ylabel(ylab,'Interpreter','Latex')
+%         zlabel('CWR [-]','Interpreter','Latex')
+%         c = colorbar
+%         c.Label.String = 'TAP [W]'
+%         xlim(xlimits)
+%         ylim(ylimits)
+%         xticks(xtickvals)
+%         yticks(ytickvals)
+     
+%         figure; hold on
+%         x0=4; y0=4;
+%         width=4.5; height=3.5;
+%         set(gcf,'units','inches','position',[x0,y0,width,height])
+%         colormap(surfcolor)
+%         surf(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.CWR),...
+%             'FaceColor','flat','FaceAlpha',0.7,...
+%             'EdgeColor','flat','FaceLighting','gouraud')
+%        figure
+%         meshc(body.dim.w*Lnorm,body.dim.c*Lnorm,cellfun(@(x) max(x),out.CWR))
+%         
+%         planeimg = abs(cellfun(@(x) max(x),out.CWR))
+%         zLimits = get(gca,'ZLim')
+%         imgzposition =zLimits(1); % desired z position of the image plane.
+%        
+%         surf(xlimits,ylimits,repmat(imgzposition, [2 2]),...
+%             planeimg,'facecolor','texture')
+% 
+%         % set the view angle.
+% %         view(45,30);
+%         
+%         
+%         xlabel(xlab,'Interpreter','Latex','FontSize',fontsize)
+%         ylabel(ylab,'Interpreter','Latex','FontSize',fontsize)
+%         zlabel('CWR [-]','Interpreter','Latex','FontSize',fontsize)
+%         xlim(xlimits)
+%         ylim(ylimits)
+%         xticks(xtickvals)
+%         yticks(ytickvals)  
+
+%

@@ -121,11 +121,12 @@ for i = 1:ncases
     end
     mu55(i) = rho*w*w*pi*miu_temp55;
     nu55(i) = -rho*omega(i)*w*w*f0(i)*f0(i)*pi*nu_temp;
-    X5(i) = abs(rho*omega(i)*w*w*f0(i)*d0(i)*pi*f_temp);
+%     X5(i) = abs(rho*omega(i)*w*w*f0(i)*d0(i)*pi*f_temp);
+    X5(i) = (rho*omega(i)*w*w*f0(i)*d0(i)*pi*f_temp);    
     
     mu15(i) = rho*w*w*pi*miu_temp15;
     nu15(i) = -rho*omega(i)*w*w*lambda0(i)*f0(i)*pi*nu_temp;
-    X1(i) = abs(rho*omega(i)*w*w*lambda0(i)*d0(i)*pi*f_temp);    
+    X1(i) = (rho*omega(i)*w*w*lambda0(i)*d0(i)*pi*f_temp);    
 end
 
 %% Computes average power and capture factor;
