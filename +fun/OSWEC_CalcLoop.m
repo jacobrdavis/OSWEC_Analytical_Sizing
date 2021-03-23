@@ -66,7 +66,8 @@ end
 tic
 
 % Parameterized device thickness and height:
-body.dim.t = body.dim.w/param.w2tr;     % Thickness [m]
+% 3-11-21 added ./
+body.dim.t = body.dim.w./param.w2tr;     % Thickness [m]
 body.dim.ht = env.h-body.dim.c;         % Height (assumed surface piercing) [m]
 
 % Calculate wave numbers [m^-1]
@@ -77,6 +78,11 @@ if env.defspectrum == false
     % Parameterized wave height
     if env.defwavesteepness == true
         env.Aw  = env.steepness*(2*pi./env.k)/2; % Wave amplitudes [m]
+        
+        
+%%%% STEEPNESS PLOT HERE
+        
+        
     end
 else
     [env.S_bret,env.moments] = bretschneider(env.Hs,2*pi./env.Tp,env.omega,true);
@@ -105,6 +111,10 @@ for i = 1:nrows
         t = body.dim.t(i,j);    % current thickness
         ht = body.dim.ht(i,j);  % current heights
         
+        %%%% DELETE
+%         body.prop.rho_m = param.rho_m_list(i)
+        %%%% DELETE
+        
         if body.paramBodyProp == true % If properties are not predefined, use parameterizations:
             % Assign body properties:
             body.prop.I55(i,j) = body.prop.rho_m/3*w*t*ht^3*(1+(t/(2*ht))^2);   % Pitch mass moment of inertia [kg-m^2]
@@ -113,7 +123,7 @@ for i = 1:nrows
             body.hydro.C55(i,j) = hs_restoring(body.prop.rho_m,w,t,ht,... % HS Restoring coefficient [Kg-m^2/s^2]
                 body.prop.rb(i,j),body.prop.rg(i,j),env.rho,env.g);
             body.prop.mass(i,j) = w*ht*t*body.prop.rho_m;
-            body.hydro.Badd(i,j) = 0;
+            body.hydro.Badd(i,j) = body.Bmech;
         end
         
         % Hydrodynamic coefficients
@@ -189,7 +199,7 @@ for i = 1:nrows
         
         %%%
         
-        env.S_bret
+     
         
         %%%
         
